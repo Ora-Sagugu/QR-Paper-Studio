@@ -1,0 +1,27 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f3f4f6;
+}
+
+.a4-paper {
+    position: relative;
+    width: 595px;
+    height: 842px;
+    background: white;
+    border: 1px solid #d1d5db;
+    margin-top: 20px;
+}
+
+.qr-box {
+    position: absolute;
+    left: 220px;
+    top: 318px;
+    width: 160px;
+    height: 160px;
+}
+
+.qr-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}

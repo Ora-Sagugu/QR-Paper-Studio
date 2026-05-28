@@ -1,7 +1,13 @@
-const qrText = document.querySelector("#qrText");
-const generateBtn = document.querySelector("#generateBtn");
-const qrImage = document.querySelector("#qrImage");
-const message = document.querySelector("#message");
+function updateQrLayout() {
+    qrBox.style.width = `${qrSize.value}px`;
+    qrBox.style.height = `${qrSize.value}px`;
+    qrBox.style.left = `${qrX.value}px`;
+    qrBox.style.top = `${qrY.value}px`;
+}
+
+qrSize.addEventListener("input", updateQrLayout);
+qrX.addEventListener("input", updateQrLayout);
+qrY.addEventListener("input", updateQrLayout);
 
 generateBtn.addEventListener("click", async () => {
     message.textContent = "正在生成二维码...";
@@ -26,3 +32,5 @@ generateBtn.addEventListener("click", async () => {
     qrImage.src = result.image;
     message.textContent = "二维码生成成功";
 });
+
+updateQrLayout();

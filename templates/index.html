@@ -1,34 +1,12 @@
-<!-- <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>QR Paper Studio</title>
-</head>
-<body>
-    <h1>纸上码工坊</h1>
-    <p>输入内容，未来这里会生成二维码。</p>
-
-    <textarea placeholder="请输入文字、数字或网址"></textarea>
-    <button>生成二维码</button>
-</body>
-</html>
-
-<h1>纸上码工坊</h1>
-
-<textarea id="qrText" placeholder="请输入文字、数字或网址"></textarea>
-<button id="generateBtn">生成二维码</button>
-
-<p id="message"></p>
-<img id="qrImage" alt="生成后的二维码">
-
-<script src="{{ url_for('static', filename='js/main.js') }}"></script> -->
-
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <title>QR Paper Studio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
     <h1>纸上码工坊</h1>
 
@@ -36,8 +14,28 @@
     <button id="generateBtn">生成二维码</button>
 
     <p id="message"></p>
-    <img id="qrImage" alt="生成后的二维码">
+    <div class="a4-paper" id="a4Paper">
+        <div class="qr-box" id="qrBox">
+            <img id="qrImage" alt="生成后的二维码">
+        </div>
+    </div>
+
+    <label>
+        二维码大小
+        <input id="qrSize" type="range" min="60" max="420" value="160">
+    </label>
+
+    <label>
+        左边距 X
+        <input id="qrX" type="number" value="220">
+    </label>
+
+    <label>
+        上边距 Y
+        <input id="qrY" type="number" value="318">
+    </label>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
+
 </html>
