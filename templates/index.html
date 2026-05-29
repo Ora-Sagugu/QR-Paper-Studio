@@ -1,40 +1,68 @@
+<!--
+  index.html —— 这是用户看到的网页“骨架”（页面结构）。
+  它由 app.py 的 home() 函数发送给浏览器。
+  页面上的输入框、按钮、图片等元素，都通过 id 被 static/js/main.js 找到并操作。
+-->
 <!DOCTYPE html>
+<!-- lang="zh-CN" 告诉浏览器这是简体中文页面 -->
 <html lang="zh-CN">
 
 <head>
+    <!-- charset="UTF-8" 保证中文不会乱码 -->
     <meta charset="UTF-8">
+    <!-- 浏览器标签页上显示的标题 -->
     <title>QR Paper Studio</title>
+    <!--
+      引入样式文件 static/css/style.css。
+      url_for('static', filename='...') 是 Flask 的写法，会自动拼出正确的静态文件网址，
+      比手写 "/static/css/style.css" 更可靠。
+    -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body>
+    <!-- 页面大标题 -->
     <h1>纸上码工坊</h1>
 
+    <!-- 输入框：id="qrText"，main.js 用 qrText.value 读取用户输入的文字 -->
     <textarea id="qrText" placeholder="请输入文字、数字或网址"></textarea>
+    <!-- 按钮：id="generateBtn"，main.js 给它绑定“点击就生成二维码”的动作 -->
     <button id="generateBtn">生成二维码</button>
 
+    <!-- 提示文字区：id="message"，main.js 在这里显示“正在生成 / 成功 / 错误” -->
     <p id="message"></p>
+    <!-- 模拟一张 A4 纸的区域：id="a4Paper"，作为二维码定位的参照背景 -->
     <div class="a4-paper" id="a4Paper">
+        <!-- 二维码外框：id="qrBox"，它的大小和位置由 main.js 根据下面的滑块/输入框实时调整 -->
         <div class="qr-box" id="qrBox">
+            <!-- 真正显示二维码的图片：id="qrImage"，main.js 把后端返回的图片塞进它的 src -->
             <img id="qrImage" alt="生成后的二维码">
         </div>
     </div>
 
+    <!-- 滑块：id="qrSize"，拖动它改变二维码大小（60~420 像素，默认 160） -->
     <label>
         二维码大小
         <input id="qrSize" type="range" min="60" max="420" value="160">
     </label>
 
+    <!-- 数字输入框：id="qrX"，控制二维码距 A4 纸左边的距离 -->
     <label>
         左边距 X
         <input id="qrX" type="number" value="220">
     </label>
 
+    <!-- 数字输入框：id="qrY"，控制二维码距 A4 纸顶部的距离 -->
     <label>
         上边距 Y
         <input id="qrY" type="number" value="318">
     </label>
 
+    <!--
+      引入交互脚本 static/js/main.js。
+      放在 </body> 前面是因为：脚本运行时，上面的元素都已经加载好了，
+      这样 main.js 才能正确找到 qrText、generateBtn 等元素。
+    -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 

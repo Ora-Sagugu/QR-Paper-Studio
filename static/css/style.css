@@ -1,27 +1,37 @@
+/*
+  style.css —— 这是网页的“化妆品”（样式表）。
+  它只负责页面长什么样：字体、颜色、大小、位置，不影响功能逻辑。
+  这里的 .a4-paper / .qr-box 对应 index.html 里 class="a4-paper" / class="qr-box" 的元素。
+*/
+
+/* body 是整个页面的主体，这里设置全局字体和背景色 */
 body {
-    font-family: Arial, sans-serif;
-    background: #f3f4f6;
+    font-family: Arial, sans-serif; /* 字体：优先 Arial，没有就用系统默认无衬线字体 */
+    background: #f3f4f6;            /* 背景：浅灰色 */
 }
 
+/* .a4-paper：模拟一张竖向 A4 纸，作为二维码定位的“参照画布” */
 .a4-paper {
-    position: relative;
-    width: 595px;
-    height: 842px;
-    background: white;
-    border: 1px solid #d1d5db;
-    margin-top: 20px;
+    position: relative; /* 关键：让内部用 absolute 定位的子元素以它为基准来定位 */
+    width: 595px;       /* A4 纸在屏幕上的宽度（按常见像素值模拟） */
+    height: 842px;      /* A4 纸的高度，比宽度大，所以是竖向的 */
+    background: white;  /* 纸是白色的 */
+    border: 1px solid #d1d5db; /* 浅灰色细边框，能看清纸的边界 */
+    margin-top: 20px;   /* 和上面的元素留一点间距 */
 }
 
+/* .qr-box：二维码的外框。下面这些数值是“初始值”，运行时会被 main.js 实时覆盖 */
 .qr-box {
-    position: absolute;
-    left: 220px;
-    top: 318px;
-    width: 160px;
-    height: 160px;
+    position: absolute; /* 关键：相对于上面的 .a4-paper 来定位，可以精确摆在纸上某处 */
+    left: 220px;        /* 距纸左边 220 像素（对应 index.html 里 qrX 的默认值） */
+    top: 318px;         /* 距纸顶部 318 像素（对应 qrY 的默认值） */
+    width: 160px;       /* 框宽 160 像素（对应 qrSize 的默认值） */
+    height: 160px;      /* 框高 160 像素 */
 }
 
+/* .qr-box img：二维码框里的那张图片 */
 .qr-box img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    width: 100%;          /* 宽度撑满外框 */
+    height: 100%;         /* 高度撑满外框 */
+    object-fit: contain;  /* 保持图片比例、完整显示不被拉伸变形 */
 }
