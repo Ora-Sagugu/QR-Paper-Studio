@@ -1,6 +1,5 @@
 # requirements.txt —— 本项目需要安装的第三方库清单。
 # 安装命令：pip install -r requirements.txt
-# （以 # 开头的行是注释，pip 会自动忽略，不会当成要安装的库。）
 
 Flask        # 网站框架：负责接收浏览器请求、返回网页和数据（app.py 用它搭后端）
 qrcode[pil]  # 生成二维码的库；[pil] 表示同时装上图片支持，这样才能把二维码存成 PNG

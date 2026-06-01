@@ -1,66 +1,384 @@
-// ===========================================================================
-// main.js —— 这是网页的“交互大脑”（前端脚本，运行在浏览器里）。
-// 它负责两件事：
-//   1) 当你拖动滑块/改输入框时，实时调整二维码框的大小和位置；
-//   2) 当你点“生成二维码”按钮时，把文字发给后端 app.py，再把返回的图片显示出来。
-//
-// 新手最容易懵的点：下面用到的 qrText、qrBox、generateBtn、message、
-// qrImage、qrSize、qrX、qrY 这些变量，明明没有声明，为什么能直接用？
-// 答案：浏览器有个规则——HTML 里凡是写了 id="xxx" 的元素，
-// 浏览器会自动创建一个同名的全局变量 xxx 指向它。
-// 所以这些名字其实就对应 index.html 里那些元素的 id。
-// ===========================================================================
+/**
+ * QR Paper Studio — client-side controller
+ *
+ * Architecture
+ * - state: in-memory list of QrItem (layout + image data URI per code)
+ * - render: sync DOM (#a4Paper, #qrList) from state (state-driven UI)
+ * - API: one POST /api/qrcode per new code (no batch endpoint by design)
+ * - export: Canvas composites full A4 (595×842) for PNG download
+ *
+ * Terms: data URI = inline image string; async/await = non-blocking HTTP
+ */
 
-// 这个函数负责：根据滑块/输入框当前的值，更新二维码框 qrBox 的尺寸和位置。
-function updateQrLayout() {
-    // 把二维码框的宽度设为滑块 qrSize 的值（加上 "px" 单位，例如 "160px"）。
-    qrBox.style.width = `${qrSize.value}px`;
-    // 高度同样跟随 qrSize，保持正方形。
-    qrBox.style.height = `${qrSize.value}px`;
-    // 距离左边的位置 = 输入框 qrX 的值。
-    qrBox.style.left = `${qrX.value}px`;
-    // 距离顶部的位置 = 输入框 qrY 的值。
-    qrBox.style.top = `${qrY.value}px`;
+const API_URL = "/api/qrcode";
+const MAX_TEXT_LENGTH = 500;
+const MAX_QR_COUNT = 12;
+const A4_WIDTH = 595;
+const A4_HEIGHT = 842;
+const DEFAULT_QR_SIZE = 120;
+
+/**
+ * @typedef {Object} QrItem
+ * @property {string} id
+ * @property {string} text
+ * @property {string} imageSrc
+ * @property {number} x
+ * @property {number} y
+ * @property {number} size
+ */
+
+/** @type {{ items: QrItem[], selectedId: string|null }} */
+const state = {
+    items: [],
+    selectedId: null,
+};
+
+const qrText = document.getElementById("qrText");
+const charCount = document.getElementById("charCount");
+const addBtn = document.getElementById("addBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const printBtn = document.getElementById("printBtn");
+const message = document.getElementById("message");
+const qrList = document.getElementById("qrList");
+const qrListEmpty = document.getElementById("qrListEmpty");
+const a4Paper = document.getElementById("a4Paper");
+const layoutControls = document.getElementById("layoutControls");
+const qrSize = document.getElementById("qrSize");
+const qrSizeValue = document.getElementById("qrSizeValue");
+const qrX = document.getElementById("qrX");
+const qrY = document.getElementById("qrY");
+
+/**
+ * @param {number} index - zero-based index in state.items
+ * @returns {{ x: number, y: number, size: number }}
+ */
+function createDefaultLayout(index) {
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    return {
+        x: 40 + col * 180,
+        y: 40 + row * 200,
+        size: DEFAULT_QR_SIZE,
+    };
 }
 
-// 给三个调节器都绑定监听：只要它们的值一发生改变（input 事件），就重新布局一次。
-qrSize.addEventListener("input", updateQrLayout); // 拖动“大小”滑块时
-qrX.addEventListener("input", updateQrLayout);    // 修改“左边距 X”时
-qrY.addEventListener("input", updateQrLayout);    // 修改“上边距 Y”时
+/**
+ * @returns {QrItem|null}
+ */
+function getSelectedItem() {
+    return state.items.find((item) => item.id === state.selectedId) ?? null;
+}
 
-// 给“生成二维码”按钮绑定点击动作。
-// async 表示这是个异步函数，里面可以用 await “等待”后端慢慢返回结果，期间不会卡死页面。
-generateBtn.addEventListener("click", async () => {
-    // 先在提示区显示“正在生成”，让用户知道程序在工作。
-    message.textContent = "正在生成二维码...";
+/**
+ * @param {string} text
+ * @param {"success"|"error"|""} [type]
+ */
+function setMessage(text, type = "") {
+    message.textContent = text;
+    message.classList.remove("is-success", "is-error");
+    if (type === "success") message.classList.add("is-success");
+    if (type === "error") message.classList.add("is-error");
+}
 
-    // 用 fetch 向后端的 /api/qrcode 发送请求。await 会等后端处理完再继续往下走。
-    const response = await fetch("/api/qrcode", {
-        method: "POST", // 用 POST，因为我们是在“提交”要生成二维码的文字
-        headers: {
-            // 告诉后端：我发过去的内容是 JSON 格式
-            "Content-Type": "application/json",
-        },
-        // 把要发送的数据打包成 JSON 文本。qrText.value 就是输入框里的文字。
-        body: JSON.stringify({
-            text: qrText.value,
-        }),
-    });
+function updateCharCount() {
+    const len = qrText.value.length;
+    charCount.textContent = `已输入 ${len} / ${MAX_TEXT_LENGTH} 字`;
+}
 
-    // 把后端返回的内容解析成 JSON 对象，例如 {"image": "..."} 或 {"error": "..."}。
-    const result = await response.json();
+function updateToolbarState() {
+    const hasItems = state.items.length > 0;
+    const atLimit = state.items.length >= MAX_QR_COUNT;
+    addBtn.disabled = atLimit;
+    deleteBtn.disabled = !state.selectedId;
+    downloadBtn.disabled = !hasItems;
+    printBtn.disabled = !hasItems;
+}
 
-    // response.ok 在状态码是 200 一类“成功”时为 true；失败（例如 400）时为 false。
-    if (!response.ok) {
-        // 失败：把后端给的错误信息显示出来，然后用 return 提前结束，不再往下执行。
-        message.textContent = result.error;
+function setLayoutControlsEnabled(enabled) {
+    layoutControls.classList.toggle("is-disabled", !enabled);
+    layoutControls.setAttribute("aria-disabled", String(!enabled));
+    qrSize.disabled = !enabled;
+    qrX.disabled = !enabled;
+    qrY.disabled = !enabled;
+}
+
+/**
+ * Push control values into the selected QrItem and refresh A4 boxes.
+ */
+function applyControlsToSelected() {
+    const item = getSelectedItem();
+    if (!item) return;
+
+    item.size = Number(qrSize.value);
+    item.x = Number(qrX.value);
+    item.y = Number(qrY.value);
+    qrSizeValue.textContent = `${item.size} px`;
+
+    const box = a4Paper.querySelector(`[data-id="${item.id}"]`);
+    if (box) {
+        box.style.width = `${item.size}px`;
+        box.style.height = `${item.size}px`;
+        box.style.left = `${item.x}px`;
+        box.style.top = `${item.y}px`;
+    }
+}
+
+/**
+ * Sync range/number inputs from the selected item.
+ */
+function syncControlsFromSelected() {
+    const item = getSelectedItem();
+    if (!item) {
+        setLayoutControlsEnabled(false);
         return;
     }
 
-    // 成功：把后端返回的图片字符串塞进 qrImage 的 src，二维码就显示出来了。
-    qrImage.src = result.image;
-    message.textContent = "二维码生成成功";
-});
+    setLayoutControlsEnabled(true);
+    qrSize.value = String(item.size);
+    qrX.value = String(item.x);
+    qrY.value = String(item.y);
+    qrSizeValue.textContent = `${item.size} px`;
+}
 
-// 页面刚加载时先调用一次，让二维码框按默认值（160 / 220 / 318）先摆放好。
-// updateQrLayout();
+/**
+ * @param {string} id
+ */
+function selectQr(id) {
+    state.selectedId = id;
+    syncControlsFromSelected();
+    renderQrList();
+    a4Paper.querySelectorAll(".qr-box").forEach((box) => {
+        box.classList.toggle("is-selected", box.dataset.id === id);
+    });
+    updateToolbarState();
+}
+
+/**
+ * Rebuild the sidebar list from state.items.
+ */
+function renderQrList() {
+    qrList.innerHTML = "";
+    qrListEmpty.hidden = state.items.length > 0;
+
+    state.items.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.className = "qr-list-item";
+        if (item.id === state.selectedId) li.classList.add("is-active");
+        li.dataset.id = item.id;
+
+        const badge = document.createElement("span");
+        badge.className = "qr-list-index";
+        badge.textContent = String(index + 1);
+
+        const label = document.createElement("span");
+        label.className = "qr-list-text";
+        label.textContent = item.text;
+        label.title = item.text;
+
+        li.append(badge, label);
+        li.addEventListener("click", () => selectQr(item.id));
+        qrList.append(li);
+    });
+}
+
+/**
+ * Rebuild all .qr-box elements inside #a4Paper from state.items.
+ */
+function renderA4() {
+    a4Paper.innerHTML = "";
+
+    state.items.forEach((item) => {
+        const box = document.createElement("div");
+        box.className = "qr-box";
+        box.dataset.id = item.id;
+        if (item.id === state.selectedId) box.classList.add("is-selected");
+
+        box.style.width = `${item.size}px`;
+        box.style.height = `${item.size}px`;
+        box.style.left = `${item.x}px`;
+        box.style.top = `${item.y}px`;
+
+        const img = document.createElement("img");
+        img.src = item.imageSrc;
+        img.alt = `二维码：${item.text}`;
+
+        box.append(img);
+        box.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectQr(item.id);
+        });
+
+        a4Paper.append(box);
+    });
+
+    updateToolbarState();
+}
+
+/**
+ * @returns {string|null}
+ */
+function getValidatedInputText() {
+    const text = qrText.value.trim();
+    if (!text) {
+        setMessage("请输入内容", "error");
+        return null;
+    }
+    if (state.items.length >= MAX_QR_COUNT) {
+        setMessage(`单页最多 ${MAX_QR_COUNT} 个二维码`, "error");
+        return null;
+    }
+    return text;
+}
+
+/**
+ * Request image from backend and append a new QrItem to state.
+ * @returns {Promise<void>}
+ */
+async function addQrFromInput() {
+    const text = getValidatedInputText();
+    if (!text) return;
+
+    setMessage("正在生成二维码...");
+    addBtn.disabled = true;
+
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            setMessage(result.error || "生成失败", "error");
+            return;
+        }
+
+        const layout = createDefaultLayout(state.items.length);
+        const item = {
+            id: crypto.randomUUID(),
+            text,
+            imageSrc: result.image,
+            ...layout,
+        };
+
+        state.items.push(item);
+        renderA4();
+        renderQrList();
+        selectQr(item.id);
+        setMessage(`已添加第 ${state.items.length} 个二维码`, "success");
+        qrText.value = "";
+        updateCharCount();
+        qrText.focus();
+    } catch {
+        setMessage("网络错误，请确认后端已启动", "error");
+    } finally {
+        updateToolbarState();
+    }
+}
+
+/** Remove the currently selected QrItem, if any. */
+function removeSelectedQr() {
+    const item = getSelectedItem();
+    if (!item) return;
+
+    state.items = state.items.filter((i) => i.id !== item.id);
+    state.selectedId = state.items.length ? state.items[state.items.length - 1].id : null;
+
+    renderA4();
+    renderQrList();
+    syncControlsFromSelected();
+    a4Paper.querySelectorAll(".qr-box").forEach((box) => {
+        box.classList.toggle("is-selected", box.dataset.id === state.selectedId);
+    });
+
+    setMessage("已删除选中二维码", "success");
+    updateToolbarState();
+}
+
+/**
+ * Load a data URI into an HTMLImageElement.
+ * @param {string} src
+ * @returns {Promise<HTMLImageElement>}
+ */
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+/**
+ * Composite all QrItems onto an off-screen canvas and trigger PNG download.
+ * @returns {Promise<void>}
+ */
+async function exportA4Png() {
+    if (!state.items.length) {
+        setMessage("请先添加至少一个二维码", "error");
+        return;
+    }
+
+    setMessage("正在导出 A4 图片...");
+
+    try {
+        const canvas = document.createElement("canvas");
+        canvas.width = A4_WIDTH;
+        canvas.height = A4_HEIGHT;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas not supported");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, A4_WIDTH, A4_HEIGHT);
+
+        for (const item of state.items) {
+            const img = await loadImage(item.imageSrc);
+            ctx.drawImage(img, item.x, item.y, item.size, item.size);
+        }
+
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "a4-layout.png";
+        link.click();
+        setMessage("A4 图片已开始下载", "success");
+    } catch {
+        setMessage("导出失败，请重试", "error");
+    }
+}
+
+/** Open the browser print dialog (print CSS hides chrome, keeps #a4Paper). */
+function printA4() {
+    if (!state.items.length) {
+        setMessage("请先添加至少一个二维码", "error");
+        return;
+    }
+    window.print();
+}
+
+function bindEvents() {
+    qrText.addEventListener("input", updateCharCount);
+
+    qrSize.addEventListener("input", applyControlsToSelected);
+    qrX.addEventListener("input", applyControlsToSelected);
+    qrY.addEventListener("input", applyControlsToSelected);
+
+    addBtn.addEventListener("click", addQrFromInput);
+    deleteBtn.addEventListener("click", removeSelectedQr);
+    downloadBtn.addEventListener("click", exportA4Png);
+    printBtn.addEventListener("click", printA4);
+
+    qrText.addEventListener("keydown", (event) => {
+        if (event.ctrlKey && event.key === "Enter") {
+            event.preventDefault();
+            addQrFromInput();
+        }
+    });
+}
+
+bindEvents();
+updateCharCount();
+renderQrList();
+setLayoutControlsEnabled(false);
+updateToolbarState();
