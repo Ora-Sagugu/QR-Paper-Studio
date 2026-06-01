@@ -1,4 +1,4 @@
-/* Layout tokens, screen UI, multi-QR selection, and print-only A4 output */
+/* 页面样式、多码选中/拖拽、打印；class 与 index.html / main.js 对应 */
 
 :root {
     --bg: #f3f4f6;
@@ -216,10 +216,11 @@ body {
 
 .qr-box {
     position: absolute;
-    cursor: pointer;
+    cursor: grab;
     border: 2px solid transparent;
     border-radius: 4px;
     transition: border-color 0.15s, box-shadow 0.15s;
+    touch-action: none;
 }
 
 .qr-box:hover {
@@ -229,6 +230,12 @@ body {
 .qr-box.is-selected {
     border-color: var(--selected);
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.qr-box.is-dragging {
+    cursor: grabbing;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .qr-box img {

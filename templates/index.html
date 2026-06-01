@@ -1,3 +1,7 @@
+<!--
+  index.html — 页面骨架，由 app.py 的 home() 渲染
+  id 与 static/js/main.js 中的 getElementById 一一对应
+-->
 <!DOCTYPE html>
 <html lang="zh-CN">
 
@@ -10,8 +14,8 @@
 
 <body>
     <header class="app-header no-print">
-        <h1>纸上码工坊</h1>
-        <p class="subtitle">QR Paper Studio — 在一张 A4 上排版多个二维码</p>
+        <h1>QR Paper Studio</h1>
+        <p class="subtitle">在一张 A4 上排版多个二维码</p>
     </header>
 
     <section class="control-panel no-print">
@@ -42,7 +46,7 @@
 
     <section class="preview-section">
         <h2 class="section-title no-print">A4 预览</h2>
-        <p class="field-hint no-print preview-hint">点击预览区中的二维码可选中并调节位置与大小</p>
+        <p class="field-hint no-print preview-hint">点击选中；拖动可改位置，或用下方 X/Y、大小微调</p>
         <div class="a4-paper" id="a4Paper" aria-label="A4 排版预览"></div>
     </section>
 

@@ -1,8 +1,13 @@
 """
-QR Paper Studio — Flask backend.
+QR Paper Studio — Flask 后端（app.py）
 
-Serves the editor page and a single QR generation API. Layout, multi-code
-state, A4 export, and print are handled entirely in static/js/main.js.
+职责边界：
+- 本文件：提供首页 HTML、根据文字生成二维码图片（base64 data URI）
+- static/js/main.js：多码排版、拖拽、Canvas 导出、打印（不经过后端）
+
+关联：
+- templates/index.html 由 render_template 返回
+- main.js 通过 fetch POST /api/qrcode 获取 {"image": "data:image/png;base64,..."}
 """
 
 from io import BytesIO
@@ -16,13 +21,9 @@ app = Flask(__name__)
 
 def build_qr_data_uri(text: str) -> str:
     """
-    Encode text as a QR code PNG and return a data URI for inline <img> use.
+    将文字编码为二维码 PNG，并转为可在 <img src> 中使用的 data URI。
 
-    Args:
-        text: Payload to encode (URL, plain text, etc.).
-
-    Returns:
-        String like ``data:image/png;base64,...``.
+    被 generate_qrcode() 调用；结果最终由前端存入 state.items[].imageSrc。
     """
     qr_image = qrcode.make(text)
     buffer = BytesIO()
@@ -33,18 +34,18 @@ def build_qr_data_uri(text: str) -> str:
 
 @app.route("/")
 def home():
-    """Serve the main editor UI."""
+    """GET / — 返回编辑器页面（index.html）。"""
     return render_template("index.html")
 
 
 @app.route("/api/qrcode", methods=["POST"])
 def generate_qrcode():
     """
-    Generate one QR code from JSON body ``{"text": "..."}``.
+    POST /api/qrcode — 生成单个二维码（前端每添加一个码调用一次）。
 
-    Returns:
-        200 + ``{"image": "<data URI>"}`` on success.
-        400 + ``{"error": "..."}`` when text is missing.
+    请求体：{"text": "..."}
+    成功：200 + {"image": "<data URI>"}
+    失败：400 + {"error": "请输入内容"}
     """
     data = request.get_json()
     text = data.get("text", "").strip() if data else ""
